@@ -1,0 +1,92 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "title": "TunnelPoint — Enterprise VPN Observability Dashboard",
+  "uid": "tunnelpoint-vpn",
+  "version": 1,
+  "panels": [
+    {
+      "title": "StrongSwan Daemon Status",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [{ "expr": "strongswan_up_status", "legendFormat": "{{instance}}" }],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "1": { "text": "ONLINE", "color": "green" }, "0": { "text": "OFFLINE", "color": "red" } } }
+          ]
+        }
+      }
+    },
+    {
+      "title": "Active IKEv2 Phase 1 Tunnels",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "targets": [{ "expr": "sum(strongswan_ike_sa_active)", "legendFormat": "Active Tunnels" }],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] } } }
+    },
+    {
+      "title": "Active CHILD_SA Data Planes",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "targets": [{ "expr": "sum(strongswan_child_sa_active)", "legendFormat": "Active CHILD_SAs" }],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] } } }
+    },
+    {
+      "title": "Next SA Rekey Countdown (Seconds)",
+      "type": "gauge",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "targets": [{ "expr": "min(strongswan_sa_rekey_time_seconds)", "legendFormat": "Rekey In" }],
+      "fieldConfig": { "defaults": { "min": 0, "max": 14400, "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 600 }, { "color": "green", "value": 1800 }] } } }
+    },
+    {
+      "title": "Encrypted VPN Tunnel Bandwidth (Bits / Second)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        { "expr": "rate(strongswan_tunnel_bytes_in_total[1m]) * 8", "legendFormat": "Inbound (bps) - {{connection}}" },
+        { "expr": "rate(strongswan_tunnel_bytes_out_total[1m]) * 8", "legendFormat": "Outbound (bps) - {{connection}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bps" } }
+    },
+    {
+      "title": "Encrypted Packet Throughput (Packets / Second)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        { "expr": "rate(strongswan_tunnel_packets_in_total[1m])", "legendFormat": "Inbound (pps) - {{connection}}" },
+        { "expr": "rate(strongswan_tunnel_packets_out_total[1m])", "legendFormat": "Outbound (pps) - {{connection}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "pps" } }
+    },
+    {
+      "title": "Gateway CPU Utilization (%)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [
+        { "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[1m])) * 100)", "legendFormat": "CPU Load - {{instance}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } }
+    },
+    {
+      "title": "Gateway Memory Utilization (%)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        { "expr": "100 * (1 - ((node_memory_MemFree_bytes + node_memory_Cached_bytes + node_memory_Buffers_bytes) / node_memory_MemTotal_bytes))", "legendFormat": "RAM Used - {{instance}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } }
+    }
+  ],
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["tunnelpoint", "vpn", "ipsec", "strongswan"],
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": { "refresh_intervals": ["5s", "10s", "30s", "1m", "5m"] },
+  "timezone": "browser"
+}

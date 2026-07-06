@@ -1,0 +1,216 @@
+# TunnelPoint Complete 5-Node Enterprise Simulation Lab (PARTS 17, 18, 23)
+# Simulates Gateway A (New York), Gateway B (London), Host A (NY LAN), Host B (London LAN), and WAN Router
+# Target File: /docker/docker-compose.yml
+
+services:
+  # ==============================================================================
+  # 1. PUBLIC INTERNET WAN ROUTER CORE
+  # ==============================================================================
+  router:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.router
+    container_name: tunnelpoint-router
+    hostname: router.tunnelpoint.io
+    # Enable NET_ADMIN capability to allow kernel IP forwarding and routing table manipulation
+    cap_add:
+      - NET_ADMIN
+    sysctls:
+      - net.ipv4.ip_forward=1
+    networks:
+      wan-net-a:
+        ipv4_address: 203.0.113.1
+      wan-net-b:
+        ipv4_address: 198.51.100.1
+    command: >
+      bash -c "
+        echo '===> [Router] Starting simulated Internet WAN core...';
+        ip route show;
+        tail -f /dev/null
+      "
+
+  # ==============================================================================
+  # 2. TUNNELPOINT GATEWAY A (NEW YORK - 203.0.113.10 / 192.168.10.1)
+  # ==============================================================================
+  gateway-a:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.gateway
+    container_name: tunnelpoint-gateway-a
+    hostname: gateway-a.tunnelpoint.io
+    environment:
+      - NODE_ROLE=gateway-a
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.rp_filter=1
+    # Mount virtual TUN device required for XFRM/VTI interfaces inside container!
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../config/strongswan.conf:/etc/strongswan.conf:ro
+      - ../config/gateway-a/swanctl.conf:/etc/swanctl/swanctl.conf:ro
+      - ../config/routing:/config/routing:ro
+      - ../config/firewall:/config/firewall:ro
+      - ../pki/build:/pki/build:ro
+    networks:
+      wan-net-a:
+        ipv4_address: 203.0.113.10
+      lan-net-a:
+        ipv4_address: 192.168.10.1
+    depends_on:
+      - router
+    command: >
+      bash -c "
+        echo '===> [Gateway A] Initializing PKI certificates and keys...';
+        mkdir -p /etc/swanctl/{x509,x509ca,private};
+        cp /pki/build/certs/gateway-a.crt /etc/swanctl/x509/;
+        cp /pki/build/cacerts/ca-chain.crt /etc/swanctl/x509ca/;
+        cp /pki/build/private/gateway-a.key /etc/swanctl/private/;
+        chmod 600 /etc/swanctl/private/*;
+        echo '===> [Gateway A] Setting Default Gateway to WAN Router (203.0.113.1)...';
+        ip route del default 2>/dev/null || true;
+        ip route add default via 203.0.113.1 dev eth0;
+        echo '===> [Gateway A] Applying Linux Routing and IPTables Firewall Rules...';
+        bash /config/routing/setup_routing.sh;
+        bash /config/firewall/iptables.rules;
+        echo '===> [Gateway A] Starting StrongSwan charon IKEv2 daemon...';
+        charon &
+        sleep 3;
+        echo '===> [Gateway A] Loading VICI swanctl configuration and initiating tunnel...';
+        swanctl --load-all;
+        tail -f /var/log/strongswan.log
+      "
+
+  # ==============================================================================
+  # 3. TUNNELPOINT GATEWAY B (LONDON - 198.51.100.20 / 192.168.20.1)
+  # ==============================================================================
+  gateway-b:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.gateway
+    container_name: tunnelpoint-gateway-b
+    hostname: gateway-b.tunnelpoint.io
+    environment:
+      - NODE_ROLE=gateway-b
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.rp_filter=1
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ../config/strongswan.conf:/etc/strongswan.conf:ro
+      - ../config/gateway-b/swanctl.conf:/etc/swanctl/swanctl.conf:ro
+      - ../config/routing:/config/routing:ro
+      - ../config/firewall:/config/firewall:ro
+      - ../pki/build:/pki/build:ro
+    networks:
+      wan-net-b:
+        ipv4_address: 198.51.100.20
+      lan-net-b:
+        ipv4_address: 192.168.20.1
+    depends_on:
+      - router
+    command: >
+      bash -c "
+        echo '===> [Gateway B] Initializing PKI certificates and keys...';
+        mkdir -p /etc/swanctl/{x509,x509ca,private};
+        cp /pki/build/certs/gateway-b.crt /etc/swanctl/x509/;
+        cp /pki/build/cacerts/ca-chain.crt /etc/swanctl/x509ca/;
+        cp /pki/build/private/gateway-b.key /etc/swanctl/private/;
+        chmod 600 /etc/swanctl/private/*;
+        echo '===> [Gateway B] Setting Default Gateway to WAN Router (198.51.100.1)...';
+        ip route del default 2>/dev/null || true;
+        ip route add default via 198.51.100.1 dev eth0;
+        echo '===> [Gateway B] Applying Linux Routing and IPTables Firewall Rules...';
+        bash /config/routing/setup_routing.sh;
+        bash /config/firewall/iptables.rules;
+        echo '===> [Gateway B] Starting StrongSwan charon IKEv2 daemon...';
+        charon &
+        sleep 3;
+        echo '===> [Gateway B] Loading VICI swanctl configuration...';
+        swanctl --load-all;
+        tail -f /var/log/strongswan.log
+      "
+
+  # ==============================================================================
+  # 4. NEW YORK BRANCH LAN HOST A (192.168.10.50)
+  # ==============================================================================
+  host-a:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.host
+    container_name: tunnelpoint-host-a
+    hostname: host-a.tunnelpoint.io
+    cap_add:
+      - NET_ADMIN
+    networks:
+      lan-net-a:
+        ipv4_address: 192.168.10.50
+    depends_on:
+      - gateway-a
+    command: >
+      bash -c "
+        echo '===> [Host A] Setting Default Gateway to New York VPN Gateway (192.168.10.1)...';
+        ip route del default 2>/dev/null || true;
+        ip route add default via 192.168.10.1 dev eth0;
+        echo '===> [Host A] Starting iperf3 bandwidth server and listening for traffic...';
+        iperf3 -s -D;
+        tail -f /dev/null
+      "
+
+  # ==============================================================================
+  # 5. LONDON BRANCH LAN HOST B (192.168.20.50)
+  # ==============================================================================
+  host-b:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.host
+    container_name: tunnelpoint-host-b
+    hostname: host-b.tunnelpoint.io
+    cap_add:
+      - NET_ADMIN
+    networks:
+      lan-net-b:
+        ipv4_address: 192.168.20.50
+    depends_on:
+      - gateway-b
+    command: >
+      bash -c "
+        echo '===> [Host B] Setting Default Gateway to London VPN Gateway (192.168.20.1)...';
+        ip route del default 2>/dev/null || true;
+        ip route add default via 192.168.20.1 dev eth0;
+        echo '===> [Host B] Starting iperf3 bandwidth server and listening for traffic...';
+        iperf3 -s -D;
+        tail -f /dev/null
+      "
+
+# ==============================================================================
+# ISOLATED DOCKER NETWORK DEFINITIONS
+# ==========================================
+networks:
+  wan-net-a:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 203.0.113.0/24
+  wan-net-b:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 198.51.100.0/24
+  lan-net-a:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.10.0/24
+  lan-net-b:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.20.0/24

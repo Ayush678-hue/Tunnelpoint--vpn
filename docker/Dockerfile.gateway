@@ -1,0 +1,41 @@
+# TunnelPoint VPN Gateway Dockerfile (PART 23)
+# Target File: /docker/Dockerfile.gateway
+# Base OS: Ubuntu 24.04 LTS
+
+FROM ubuntu:24.04
+
+# Prevent interactive time zone prompts during apt installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install core StrongSwan, networking, firewall, and diagnostic dependencies
+RUN apt-get update -y && apt-get install -y --no-install-recommends \
+    strongswan \
+    strongswan-pki \
+    libcharon-extra-plugins \
+    libcharon-extauth-plugins \
+    libstrongswan-standard-plugins \
+    iproute2 \
+    iptables \
+    iptables-persistent \
+    nftables \
+    ethtool \
+    conntrack \
+    tcpdump \
+    tshark \
+    iputils-ping \
+    traceroute \
+    mtr-tiny \
+    curl \
+    wget \
+    iperf3 \
+    python3 \
+    python3-pip \
+    python3-vici \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create log file for tailing
+RUN touch /var/log/strongswan.log && chmod 666 /var/log/strongswan.log
+
+WORKDIR /config
+CMD ["bash"]

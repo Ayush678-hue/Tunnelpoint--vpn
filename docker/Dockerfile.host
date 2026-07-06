@@ -1,0 +1,22 @@
+# TunnelPoint LAN Host Endpoint Dockerfile (PART 23)
+# Target File: /docker/Dockerfile.host
+# Simulates branch office workstations and servers
+
+FROM ubuntu:24.04
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update -y && apt-get install -y --no-install-recommends \
+    iproute2 \
+    iputils-ping \
+    traceroute \
+    mtr-tiny \
+    curl \
+    wget \
+    iperf3 \
+    tcpdump \
+    netcat-openbsd \
+    dnsutils \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /root
+CMD ["bash"]

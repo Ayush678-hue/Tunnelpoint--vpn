@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# TunnelPoint Enterprise IPTables Firewall & NAT Hardening Script (PART 16)
+# Target File: /config/firewall/iptables.rules
+# Enforces Zero-Trust default DROP policy, allows IKEv2/ESP WAN traffic, handles XFRM re-injection, and exempts VPN from NAT
+
+set -euo pipefail
+
+echo "===> [Step 1] Flushing existing Netfilter rules and deleting custom chains..."
+iptables -F
+iptables -t nat -F
+iptables -t mangle -F
+iptables -X
+
+echo "===> [Step 2] Setting Default Policies to DROP! (Zero-Trust Perimeter Defense)..."
+iptables -P INPUT DROP
+iptables -P FORWARD DROP
+iptables -P OUTPUT ACCEPT
+
+# ==============================================================================
+# INPUT CHAIN (Traffic destined for Gateway OS itself)
+# ==========================================
+echo "===> [Step 3] Configuring INPUT chain rules..."
+# Allow loopback interface (essential for local IPC and daemons)
+iptables -A INPUT -i lo -j ACCEPT
+
+# Allow ESTABLISHED and RELATED stateful return traffic automatically via nf_conntrack!
+iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+# Drop all INVALID packets immediately
+iptables -A INPUT -m conntrack --ctstate INVALID -j DROP
+
+# Allow SSH from Internal LAN only (Never allow SSH from public Internet!)
+iptables -A INPUT -i eth1 -p tcp --dport 22 -m conntrack --ctstate NEW -j ACCEPT
+
+# ALLOW STRONGSWAN IKEv2 & IPsec PROTOCOLS FROM PUBLIC WAN!
+# UDP Port 500: IKEv2 Key Exchange Handshake
+iptables -A INPUT -i eth0 -p udp --dport 500 -j ACCEPT
+# UDP Port 4500: IPsec NAT Traversal (NAT-T) ESP Encapsulation
+iptables -A INPUT -i eth0 -p udp --dport 4500 -j ACCEPT
+# IP Protocol 50: Raw Encapsulating Security Payload (ESP) when no NAT is present
+iptables -A INPUT -i eth0 -p esp -j ACCEPT
+
+# Allow ICMP Ping (with rate-limiting to prevent ICMP Flood DoS)
+iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 5/second -j ACCEPT
+
+# ==============================================================================
+# FORWARD CHAIN (Traffic passing across Gateway: LAN <-> WAN <-> VPN)
+# ==========================================
+echo "===> [Step 4] Configuring FORWARD chain rules (XFRM Re-Injection Loop)..."
+# Allow ESTABLISHED and RELATED transit traffic
+iptables -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+# ALLOW SITE-TO-SITE VPN TRAFFIC
+# Allow traffic originating from our LAN heading to Remote Office B LAN across VPN / VTI interface
+iptables -A FORWARD -i eth1 -s 192.168.10.0/24 -d 192.168.20.0/24 -j ACCEPT
+iptables -A FORWARD -o vti0 -s 192.168.10.0/24 -d 192.168.20.0/24 -j ACCEPT
+
+# Allow decrypted incoming VPN traffic from Remote Office B LAN heading to our LAN
+iptables -A FORWARD -s 192.168.20.0/24 -d 192.168.10.0/24 -o eth1 -j ACCEPT
+iptables -A FORWARD -i vti0 -s 192.168.20.0/24 -d 192.168.10.0/24 -j ACCEPT
+
+# Allow general Internet browsing from internal LAN out to public WAN
+iptables -A FORWARD -i eth1 -o eth0 -s 192.168.10.0/24 -j ACCEPT
+iptables -A FORWARD -i eth1 -o eth0 -s 192.168.20.0/24 -j ACCEPT
+
+# ==============================================================================
+# MANGLE CHAIN (TCP MSS Clamping to prevent MTU Fragmentation Black Holes!)
+# ==========================================
+echo "===> [Step 5] Configuring TCP MSS Clamping in MANGLE table..."
+# Dynamically shrink TCP Maximum Segment Size on SYN packets passing across VPN tunnel to match link MTU!
+iptables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -s 192.168.10.0/24 -d 192.168.20.0/24 -j TCPMSS --clamp-mss-to-pmtu
+iptables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -s 192.168.20.0/24 -d 192.168.10.0/24 -j TCPMSS --clamp-mss-to-pmtu
+
+# ==============================================================================
+# NAT TABLE (POSTROUTING - Internet Access & IPsec Exemption!)
+# ==========================================
+echo "===> [Step 6] Configuring NAT POSTROUTING rules (IPsec Exemption & Masquerade)..."
+# CRITICAL RULE: EXEMPT IPsec VPN TRAFFIC FROM NAT!
+# If traffic is heading from local LAN to remote LAN across VPN, ACCEPT it in NAT table WITHOUT translating Source IP!
+iptables -t nat -A POSTROUTING -s 192.168.10.0/24 -d 192.168.20.0/24 -j ACCEPT
+iptables -t nat -A POSTROUTING -s 192.168.20.0/24 -d 192.168.10.0/24 -j ACCEPT
+
+# Apply SNAT / MASQUERADE to all other general Internet traffic leaving WAN interface eth0!
+iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+
+echo "===> [SUCCESS] IPTables firewall rules successfully applied and verified!"
+iptables -L -n -v
+iptables -t nat -L -n -v

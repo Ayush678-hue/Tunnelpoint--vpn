@@ -1,0 +1,125 @@
+# TunnelPoint Enterprise PKI OpenSSL Configuration File (PART 14)
+# Used to generate Root CA, Intermediate CA, and Leaf Gateway/Client Certificates
+# Enforces strict X.509v3 Basic Constraints, Key Usages, and Subject Alternative Names (SANs)
+
+[ ca ]
+default_ca = CA_default
+
+[ CA_default ]
+dir               = ./pki_build
+certs             = $dir/certs
+crl_dir           = $dir/crl
+new_certs_dir     = $dir/newcerts
+database          = $dir/index.txt
+serial            = $dir/serial
+RANDFILE          = $dir/private/.rand
+
+# Default message digest algorithm
+default_md        = sha384
+name_opt          = ca_default
+cert_opt          = ca_default
+default_days      = 365
+preserve          = no
+policy            = policy_strict
+
+[ policy_strict ]
+countryName             = match
+stateOrProvinceName     = match
+organizationName        = match
+organizationalUnitName  = optional
+commonName              = supplied
+emailAddress            = optional
+
+[ req ]
+default_bits        = 4096
+default_md          = sha384
+default_keyfile     = privkey.pem
+distinguished_name  = req_distinguished_name
+string_mask         = utf8only
+
+[ req_distinguished_name ]
+countryName                     = Country Name (2 letter code)
+countryName_default             = US
+stateOrProvinceName             = State or Province Name (full name)
+stateOrProvinceName_default     = New York
+localityName                    = Locality Name (eg, city)
+localityName_default            = New York City
+0.organizationName              = Organization Name (eg, company)
+0.organizationName_default      = TunnelPoint Enterprise VPN
+organizationalUnitName          = Organizational Unit Name (eg, section)
+organizationalUnitName_default  = Network Infrastructure
+commonName                      = Common Name (e.g. server FQDN or YOUR name)
+commonName_max                  = 64
+
+# ==========================================
+# TIER 1: ROOT CA EXTENSIONS
+# ==========================================
+[ v3_root_ca ]
+# Critical: This certificate IS a Certificate Authority (CA:TRUE)
+# pathlen:1 indicates this Root CA can only sign Intermediate CAs (1 level down), NOT end-user leaf certs directly!
+basicConstraints = critical, CA:TRUE, pathlen:1
+keyUsage = critical, digitalSignature, cRLSign, keyCertSign
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always,issuer
+subjectAltName = DNS:root-ca.tunnelpoint.io
+
+# ==========================================
+# TIER 2: INTERMEDIATE CA EXTENSIONS
+# ==========================================
+[ v3_intermediate_ca ]
+# Critical: This certificate IS a Certificate Authority (CA:TRUE)
+# pathlen:0 indicates this Intermediate CA can only sign Leaf end-entity certificates (0 further CAs allowed)!
+basicConstraints = critical, CA:TRUE, pathlen:0
+keyUsage = critical, digitalSignature, cRLSign, keyCertSign
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always,issuer
+subjectAltName = DNS:intermediate-ca.tunnelpoint.io
+
+# ==========================================
+# TIER 3: VPN GATEWAY LEAF CERTIFICATE EXTENSIONS
+# ==========================================
+[ v3_gateway_a_leaf ]
+# Critical: This certificate is NOT a Certificate Authority (CA:FALSE)! It cannot sign other certs!
+basicConstraints = critical, CA:FALSE
+keyUsage = critical, digitalSignature, keyEncipherment, keyAgreement
+# Extended Key Usage: Authorized for both Server and Client IKEv2 authentication and IPsec end system
+extendedKeyUsage = serverAuth, clientAuth, ipsecEndSystem
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid,issuer
+# Subject Alternative Name (SAN) — Mandatory for modern IKEv2 and TLS 1.3 identity matching!
+subjectAltName = @gateway_a_san
+
+[ gateway_a_san ]
+DNS.1 = gateway-a.tunnelpoint.io
+DNS.2 = ny-gw.tunnelpoint.io
+IP.1  = 203.0.113.10
+IP.2  = 192.168.10.1
+
+[ v3_gateway_b_leaf ]
+basicConstraints = critical, CA:FALSE
+keyUsage = critical, digitalSignature, keyEncipherment, keyAgreement
+extendedKeyUsage = serverAuth, clientAuth, ipsecEndSystem
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid,issuer
+subjectAltName = @gateway_b_san
+
+[ gateway_b_san ]
+DNS.1 = gateway-b.tunnelpoint.io
+DNS.2 = london-gw.tunnelpoint.io
+IP.1  = 198.51.100.20
+IP.2  = 192.168.20.1
+
+# ==========================================
+# TIER 3: REMOTE WORKER CLIENT LEAF CERTIFICATE EXTENSIONS
+# ==========================================
+[ v3_client_leaf ]
+basicConstraints = critical, CA:FALSE
+keyUsage = critical, digitalSignature, keyAgreement
+extendedKeyUsage = clientAuth, ipsecUser
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid,issuer
+subjectAltName = @client_san
+
+[ client_san ]
+email.1 = employee@tunnelpoint.io
+DNS.1   = client-laptop.tunnelpoint.io
