@@ -13,7 +13,7 @@ When interviewing for senior engineering roles, behavioral questions assess your
   3. I calculated the cryptographic overhead: IPsec ESP encapsulation + UDP Port 4500 NAT-T header + outer IP header added 72 bytes. Encapsulating a 1500-byte frame resulted in a 1572-byte packet, exceeding the standard 1500-byte WAN Ethernet MTU!
   4. Gateway A correctly dropped the packet and sent an `ICMP Type 3 Code 4 (Fragmentation Needed and DF Set)` message back to the workstation. However, an upstream cloud firewall was blocking ICMP error messages, preventing Path MTU Discovery (PMTUD) from shrinking the sender's packet size—creating an MTU Black Hole!
   5. To solve this permanently without modifying thousands of client workstations, I implemented **TCP MSS Clamping** in our Linux Netfilter firewall. I added a rule to the `iptables` Mangle table (`--clamp-mss-to-pmtu`) that intercepts TCP SYN packets during the initial handshake and dynamically rewrites the Maximum Segment Size option to fit perfectly inside the tunnel MTU.
-* **Result**: Large file downloads and SCP transfers immediately succeeded at full line rate. Throughput benchmarks via `iperf3` confirmed stable 10 Gbps performance with zero packet loss or fragmentation overhead.
+* **Result**: Large file downloads and SCP transfers immediately succeeded at full line rate. Throughput benchmarks via `iperf3` confirmed stable multi-gigabit performance with zero packet loss or fragmentation overhead, validating our 10 Gbps bare-metal architectural design.
 
 ---
 

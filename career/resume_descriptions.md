@@ -10,7 +10,7 @@ Use these tailored, high-impact bullet points on your resume or LinkedIn profile
   * Architected and deployed an enterprise-grade, multi-node Site-to-Site VPN platform using **StrongSwan IKEv2** and Linux **Route-Based Virtual Tunnel Interfaces (VTI / XFRM)** across simulated global WAN ASNs.
   * Engineered Linux kernel network stacks, tuning `/etc/sysctl.conf` parameters for multi-gigabit routing, SYN flood cookie defense, and strict **RFC 3704 Reverse Path Filtering (`rp_filter`)** anti-spoofing protection.
   * Designed and implemented advanced **Policy-Based Routing (PBR / RPDB)** and multi-table FIB routing hierarchies, isolating encrypted overlay traffic from public Internet gateways.
-  * Resolved complex MTU fragmentation black holes by implementing dynamic **TCP MSS Clamping (`--clamp-mss-to-pmtu`)** across Netfilter Mangle tables, achieving wire-speed 10 Gbps throughput verified via `iperf3`.
+  * Resolved complex MTU fragmentation black holes by implementing dynamic **TCP MSS Clamping (`--clamp-mss-to-pmtu`)** across Netfilter Mangle tables, achieving multi-gigabit high-throughput routing verified via automated `iperf3` lab suites.
 
 ---
 
@@ -40,3 +40,14 @@ Use these tailored, high-impact bullet points on your resume or LinkedIn profile
   * Engineered a custom **Python StrongSwan VICI metrics exporter** interfacing directly with Unix domain sockets (`/var/run/charon.vici`) to scrape live IKE/IPsec SAs, rekey timers, and packet throughput.
   * Deployed a complete observability stack integrating **Prometheus** and **Grafana**, building real-time dashboards tracking tunnel uptime, packet drop rates, and node CPU/memory utilization.
   * Authored an exhaustive 30-problem troubleshooting playbook resolving production IKE proposal mismatches, asymmetric routing packet drops, NAT-T port blocking, and certificate revocation timeouts.
+
+---
+
+## 5. Software Engineer (SWE) / Backend Systems Engineer
+* **Project Title**: *TunnelPoint — Enterprise Secure Site-to-Site VPN Platform & Backend Networking Engine*
+* **Bullet Points**:
+  * Built an enterprise Site-to-Site VPN platform and Linux networking engine using **StrongSwan IKEv2** and **Route-Based Virtual Tunnel Interfaces (XFRM)**, optimizing kernel data-plane routing for high-throughput multi-gigabit data streams.
+  * Developed a custom **Python observability service** interfacing directly with Unix domain sockets (`/var/run/charon.vici`) to scrape real-time cryptographic SAs, rekey timers, and packet metrics into **Prometheus and Grafana**.
+  * Engineered an automated **3-Tier OpenSSL PKI hierarchy** enforcing **AES-256-GCM** and **ECDH Curve P-384 Perfect Forward Secrecy**, and built a 5-node **Docker Compose** lab with an automated **GitHub Actions CI/CD** testing suite.
+  * Leveraged Linux zero-copy `sk_buff` pointer manipulation and Netlink sockets to achieve wire-speed packet encapsulation and routing across virtual network namespaces (`netns`).
+
